@@ -35,6 +35,7 @@
 如果有课程学习方面的问题、改进建议、资料补充或版权反馈，可以通过邮件联系我：
 
 **联系邮箱：** [luanzhijian2005@163.com](mailto:luanzhijian2005@163.com)
+**微信：** 18342225296
 
 也欢迎通过 GitHub Issues 或 Pull Requests 交流与贡献。
 
