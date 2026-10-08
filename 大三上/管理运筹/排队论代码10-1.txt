@@ -1,0 +1,146 @@
+%% M/M/1排队系统蒙特卡洛模拟
+% 问题：顾客到达泊松流(λ=3辆/小时)，服务时间指数分布(μ=4辆/小时)
+% 模型：M/M/1 (单服务台)
+% 模拟：1000个顾客
+
+clear; clc; close all;
+
+%% ========== 第一部分：参数设置 ==========
+% 这里设置排队系统的基本参数，都是已知条件
+
+lambda = 3;          % 到达率：3辆/小时 (从题目已知)
+avg_service_time = 15/60; % 平均服务时间：15分钟 = 15/60 = 0.25小时
+mu = 1/avg_service_time;  % 服务率：1/0.25 = 4辆/小时
+
+num_customers = 1000; % 模拟顾客数量：1000人 (题目要求)
+
+fprintf('========== M/M/1排队系统参数 ==========\n');
+fprintf('到达率 λ = %.2f 辆/小时\n', lambda);
+fprintf('平均服务时间 = %.2f 小时 (15分钟)\n', avg_service_time);
+fprintf('服务率 μ = %.2f 辆/小时\n', mu);
+fprintf('模拟顾客数 = %d 辆\n\n', num_customers);
+
+%% ========== 第二部分：生成随机事件 ==========
+% 这一步生成每个顾客的到达时间间隔和服务时间
+% 注意：泊松到达的间隔时间服从指数分布
+
+% 1. 生成到达间隔时间 (指数分布，均值=1/λ)
+% 解释：如果平均每小时来3辆，平均间隔时间就是1/3≈0.333小时
+inter_arrival_times = exprnd(1/lambda, 1, num_customers);
+
+% 2. 计算每个顾客的到达时刻
+% cumsum是累积求和，第i个顾客的到达时间=前i个间隔时间的和
+arrival_times = cumsum(inter_arrival_times);
+
+% 3. 生成服务时间 (指数分布，均值=0.25小时)
+service_times = exprnd(avg_service_time, 1, num_customers);
+
+%% ========== 第三部分：排队过程模拟 ==========
+% 这是核心部分，模拟每个顾客到达、等待、接受服务、离开的全过程
+
+% 初始化数组，存储每个顾客的关键时间点
+% 这些数组的长度都是num_customers，记录每个顾客的信息
+start_service_times = zeros(1, num_customers); % 开始服务时刻
+departure_times = zeros(1, num_customers);     % 离开时刻
+waiting_times = zeros(1, num_customers);       % 等待时间
+system_times = zeros(1, num_customers);        % 系统逗留时间
+
+% 初始化系统状态
+server_free_time = 0; % 服务器空闲的时间（初始为0时刻空闲）
+customer_in_service = 0; % 当前正在服务的顾客编号（0表示没有）
+
+fprintf('开始模拟排队过程...\n');
+
+% 主循环：处理每一个顾客
+for i = 1:num_customers
+    % 顾客i在arrival_times(i)时刻到达
+    
+    % 情况1：顾客到达时服务器空闲
+    if arrival_times(i) >= server_free_time
+        % 立即开始服务，无需等待
+        start_service_times(i) = arrival_times(i);
+        waiting_times(i) = 0;
+    else
+        % 情况2：顾客到达时服务器忙，需要排队等待
+        start_service_times(i) = server_free_time;
+        waiting_times(i) = server_free_time - arrival_times(i);
+    end
+    
+    % 顾客开始接受服务，计算离开时间
+    departure_times(i) = start_service_times(i) + service_times(i);
+    
+    % 更新服务器下一次空闲的时间
+    server_free_time = departure_times(i);
+    
+    % 计算顾客在系统中的总时间（逗留时间）
+    system_times(i) = departure_times(i) - arrival_times(i);
+end
+
+fprintf('排队过程模拟完成！\n\n');
+
+%% ========== 第四部分：计算性能指标 ==========
+% 根据模拟结果计算排队系统的各项性能指标
+
+% 1. 服务强度（系统利用率）
+% 公式：ρ = λ/μ = 总服务时间 / 总模拟时间
+total_service_time = sum(service_times);
+total_simulation_time = departure_times(end); % 最后一位顾客离开的时间
+utilization = total_service_time / total_simulation_time;
+
+% 2. 平均队长（系统中平均顾客数，包括正在服务的）
+% 公式：L = 总顾客时间 / 总模拟时间
+% 解释：把每个顾客在系统中的时间加起来，除以总时间
+total_time_in_system = sum(system_times);
+avg_system_customers = total_time_in_system / total_simulation_time;
+
+% 3. 平均排队长（队列中平均等待的顾客数）
+% 公式：Lq = 总等待时间 / 总模拟时间
+total_waiting_time = sum(waiting_times);
+avg_queue_customers = total_waiting_time / total_simulation_time;
+
+% 4. 平均逗留时间（在系统中的平均时间）
+avg_system_time = mean(system_times);
+
+% 5. 平均等待时间（在队列中的平均等待时间）
+avg_waiting_time = mean(waiting_times);
+
+%% ========== 第五部分：理论值计算 ==========
+% 计算M/M/1排队模型的理论公式结果，用于对比验证
+
+rho = lambda / mu; % 服务强度
+
+% M/M/1公式：
+theory_utilization = rho;                          % 服务强度
+theory_avg_system_customers = rho / (1 - rho);     % 平均队长
+theory_avg_queue_customers = rho^2 / (1 - rho);    % 平均排队长
+theory_avg_system_time = 1 / (mu - lambda);        % 平均逗留时间
+theory_avg_waiting_time = rho / (mu - lambda);     % 平均等待时间
+
+%% ========== 第六部分：显示结果 ==========
+fprintf('========== 模拟结果 vs 理论值 ==========\n\n');
+fprintf('性能指标        模拟结果       理论值        相对误差\n');
+fprintf('----------     ----------    ----------    ----------\n');
+
+fprintf('服务强度ρ      %8.4f      %8.4f      %7.2f%%\n', ...
+        utilization, theory_utilization, ...
+        abs(utilization-theory_utilization)/theory_utilization*100);
+
+fprintf('平均队长L       %8.4f      %8.4f      %7.2f%%\n', ...
+        avg_system_customers, theory_avg_system_customers, ...
+        abs(avg_system_customers-theory_avg_system_customers)/theory_avg_system_customers*100);
+
+fprintf('平均排队长Lq    %8.4f      %8.4f      %7.2f%%\n', ...
+        avg_queue_customers, theory_avg_queue_customers, ...
+        abs(avg_queue_customers-theory_avg_queue_customers)/theory_avg_queue_customers*100);
+
+fprintf('平均逗留时间W   %8.4f小时  %8.4f小时  %7.2f%%\n', ...
+        avg_system_time, theory_avg_system_time, ...
+        abs(avg_system_time-theory_avg_system_time)/theory_avg_system_time*100);
+
+fprintf('平均等待时间Wq  %8.4f小时  %8.4f小时  %7.2f%%\n', ...
+        avg_waiting_time, theory_avg_waiting_time, ...
+        abs(avg_waiting_time-theory_avg_waiting_time)/theory_avg_waiting_time*100);
+
+fprintf('\n模拟总时长：%.2f 小时\n', total_simulation_time);
+fprintf('最后一位顾客离开时间：%.2f 小时\n', departure_times(end));
+
